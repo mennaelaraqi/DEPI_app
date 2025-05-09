@@ -1,0 +1,17 @@
+streamlit==1.45.0
+Pillow==11.0.0
+opencv-python==4.11.0.86
+ultralytics==8.3.116
+numpy==2.1.1
+transformers>=4.30.0
+torch>=1.10.0
+pillow>=9.0.0
+tensorflow>=2.10.0 
+matplotlib
+scikit-learn
+tqdm
+python-dotenv
+google-generativeai
+pytesseract
+opencv-python-headless
+numpy
