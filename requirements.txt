@@ -16,6 +16,5 @@ numpy
 gdown
 requests
 tensorflow==2.11.0
-keras==2.11.0
 tf-keras
 transformers==4.38.0
