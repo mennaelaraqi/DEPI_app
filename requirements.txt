@@ -16,3 +16,4 @@ pytesseract
 opencv-python-headless
 numpy
 gdown
+requests
