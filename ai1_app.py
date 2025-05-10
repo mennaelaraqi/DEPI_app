@@ -322,7 +322,9 @@ def chest_xray_page():
 
     # التحقق من نجاح تحميل النموذج
     if model is None:
-        return
+        st.error("فشل في تحميل النموذج. تأكد من الاتصال بالإنترنت أو من صلاحية روابط Google Drive.")
+        st.stop()
+        #############################
 
     st.write("### upload X-ray Image")
     uploaded_file = st.file_uploader("choose image...", type=["jpg", "png", "jpeg"])
