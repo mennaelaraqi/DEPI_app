@@ -382,11 +382,23 @@ def brain_tumor_page():
     st.write("### Upload Brain MRI")
     uploaded_file = st.file_uploader("Choose an MRI image...", type=["jpg", "png", "jpeg"])
     if uploaded_file is not None:
-        brain_detection_model = torch.hub.load('ultralytics/yolov5', 'custom', path=detection_model_path, force_reload=True)
+        #brain_detection_model = torch.hub.load('ultralytics/yolov5', 'custom', path=detection_model_path, force_reload=True)
+        ###############################
+        try:
+            brain_detection_model = YOLO(detection_model_path)
+        except Exception as e:
+            st.error(f"فشل تحميل نموذج الكشف YOLOv5: {e}")
+            st.stop()
+        ##
         image = Image.open(uploaded_file).convert('RGB')
         image_np = np.array(image)
+        
         results = brain_detection_model(image_np)
-        result_img = np.squeeze(results.render())
+        #result_img = np.squeeze(results.render())
+        #############################
+        result_img = results[0].plot()
+        ##
+        
         st.image(image, caption="Uploaded MRI", use_container_width=True)
         img = image.resize((224, 224))
         img_array = np.expand_dims(np.array(img) / 255.0, axis=0)
