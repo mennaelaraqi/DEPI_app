@@ -344,79 +344,148 @@ def chest_xray_page():
             except Exception as e:
                 st.error(f"❌ Error analyzing image: {str(e)}")
 
+                
 def brain_tumor_page():
-    @st.cache_resource  # تخزين النموذج في الذاكرة للجلسات المتعددة
+    @st.cache_resource
     def load_models():
         try:
-            # رابط Google Drive المعدل (استبدل ?usp=sharing بـ &export=download)
+            # تحميل فقط نموذج التصنيف من Google Drive
             file_id = "1nTRy7Kn5nHDlAuXoB3ffFhwiV1I3KTRg"
             output = "brain_classification_model.h5"
 
-            dfile_id = '17gbv9iQuW1wFBFNN_dFCI41104LQW1ed'
-            doutput = 'brain_detection_model.pt'
-
-            # تحميل الملف
-            gdown.download(f"https://drive.google.com/uc?id={file_id}", output, quiet=False)
-            gdown.download(f"https://drive.google.com/uc?id={dfile_id}", doutput, quiet=False)
+            if not os.path.exists(output):
+                gdown.download(f"https://drive.google.com/uc?id={file_id}", output, quiet=False)
 
             if not os.path.exists(output):
-                return None, None
+                st.error("فشل تحميل نموذج التصنيف")
+                return None
 
-            if not os.path.exists(doutput):
-                st.error("فشل تحميل نموذج الكشف YOLOv5")
-                return None, None
-
-            # تحميل النماذج
             classification_model = tf.keras.models.load_model(output)
 
-            return classification_model, doutput
+            return classification_model
 
         except Exception as e:
-            st.error(f"error: {str(e)}")
-            return None, None
+            st.error(f"حدث خطأ أثناء تحميل النموذج: {str(e)}")
+            return None
 
-    classification_model, detection_model_path = load_models()
+    classification_model = load_models()
 
     st.write("### Upload Brain MRI")
     uploaded_file = st.file_uploader("Choose an MRI image...", type=["jpg", "png", "jpeg"])
 
     if uploaded_file is not None:
-            #####################
-        st.write(f"Torch version: {torch.__version__}")
-        st.write("Trying to load YOLOv5 model using torch.hub...")
-        
-
         try:
+            st.write("تحميل نموذج الكشف YOLOv5 من الملفات المحلية...")
             brain_detection_model = torch.hub.load(
-                'ultralytics/yolov5',
+                './yolov5',  # المسار المحلي إلى مجلد yolov5
                 'custom',
-                path=detection_model_path,
-                force_reload=True,
-                device='cpu'
-                )
+                path='brain_detection_model.pt',  # ملف النموذج
+                source='local',
+                force_reload=True
+            )
         except Exception as e:
             st.error(f"فشل تحميل نموذج YOLOv5: {e}")
             st.stop()
 
-        #____________________________
-        
-        #brain_detection_model = torch.hub.load('ultralytics/yolov5', 'custom', path=detection_model_path, force_reload=True)
         image = Image.open(uploaded_file).convert('RGB')
         image_np = np.array(image)
-        
+
+        # تطبيق نموذج الكشف
         results = brain_detection_model(image_np)
         result_img = np.squeeze(results.render())
-        
+
         st.image(image, caption="Uploaded MRI", use_container_width=True)
+
+        # تجهيز الصورة للتصنيف
         img = image.resize((224, 224))
         img_array = np.expand_dims(np.array(img) / 255.0, axis=0)
+
         if st.button("Detect Tumors"):
             with st.spinner('Processing...'):
                 brain_classes = ['No_Tumor', 'Tumor']
                 prediction = classification_model.predict(img_array)
                 predicted_class = int(prediction[0][0] > 0.5) if prediction.shape[1] == 1 else np.argmax(prediction)
-                st.markdown(f" Diagnosis: {brain_classes[predicted_class]}")
+
+                st.markdown(f"### Diagnosis: **{brain_classes[predicted_class]}**")
                 st.image(result_img, caption="Detection Result", use_container_width=True)
+
+                
+                
+########################################################
+# def brain_tumor_page():
+#     @st.cache_resource  # تخزين النموذج في الذاكرة للجلسات المتعددة
+#     def load_models():
+#         try:
+#             # رابط Google Drive المعدل (استبدل ?usp=sharing بـ &export=download)
+#             file_id = "1nTRy7Kn5nHDlAuXoB3ffFhwiV1I3KTRg"
+#             output = "brain_classification_model.h5"
+
+#             dfile_id = '17gbv9iQuW1wFBFNN_dFCI41104LQW1ed'
+#             doutput = 'brain_detection_model.pt'
+
+#             # تحميل الملف
+#             gdown.download(f"https://drive.google.com/uc?id={file_id}", output, quiet=False)
+#             gdown.download(f"https://drive.google.com/uc?id={dfile_id}", doutput, quiet=False)
+
+#             if not os.path.exists(output):
+#                 return None, None
+
+#             if not os.path.exists(doutput):
+#                 st.error("فشل تحميل نموذج الكشف YOLOv5")
+#                 return None, None
+
+#             # تحميل النماذج
+#             classification_model = tf.keras.models.load_model(output)
+
+#             return classification_model, doutput
+
+#         except Exception as e:
+#             st.error(f"error: {str(e)}")
+#             return None, None
+
+#     classification_model, detection_model_path = load_models()
+
+#     st.write("### Upload Brain MRI")
+#     uploaded_file = st.file_uploader("Choose an MRI image...", type=["jpg", "png", "jpeg"])
+
+#     if uploaded_file is not None:
+#             #####################
+#         st.write(f"Torch version: {torch.__version__}")
+#         st.write("Trying to load YOLOv5 model using torch.hub...")
+        
+
+#         try:
+#             brain_detection_model = torch.hub.load(
+#                 'ultralytics/yolov5',
+#                 'custom',
+#                 path=detection_model_path,
+#                 force_reload=True,
+#                 device='cpu'
+#                 )
+#         except Exception as e:
+#             st.error(f"فشل تحميل نموذج YOLOv5: {e}")
+#             st.stop()
+
+#         #____________________________
+        
+#         #brain_detection_model = torch.hub.load('ultralytics/yolov5', 'custom', path=detection_model_path, force_reload=True)
+#         image = Image.open(uploaded_file).convert('RGB')
+#         image_np = np.array(image)
+        
+#         results = brain_detection_model(image_np)
+#         result_img = np.squeeze(results.render())
+        
+#         st.image(image, caption="Uploaded MRI", use_container_width=True)
+#         img = image.resize((224, 224))
+#         img_array = np.expand_dims(np.array(img) / 255.0, axis=0)
+#         if st.button("Detect Tumors"):
+#             with st.spinner('Processing...'):
+#                 brain_classes = ['No_Tumor', 'Tumor']
+#                 prediction = classification_model.predict(img_array)
+#                 predicted_class = int(prediction[0][0] > 0.5) if prediction.shape[1] == 1 else np.argmax(prediction)
+#                 st.markdown(f" Diagnosis: {brain_classes[predicted_class]}")
+#                 st.image(result_img, caption="Detection Result", use_container_width=True)
+#_________________________________________
 
 
 def liver_page():
