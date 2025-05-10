@@ -3,10 +3,8 @@ Pillow==11.0.0
 opencv-python==4.11.0.86
 ultralytics==8.3.116
 numpy==2.1.1
-transformers>=4.30.0
 torch>=1.10.0
-pillow>=9.0.0
-tensorflow>=2.10.0 
+pillow>=9.0.0 
 matplotlib
 scikit-learn
 tqdm
@@ -17,3 +15,7 @@ opencv-python-headless
 numpy
 gdown
 requests
+tensorflow==2.11.0
+keras==2.11.0
+tf-keras
+transformers==4.38.0
