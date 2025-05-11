@@ -377,7 +377,7 @@ def brain_tumor_page():
         try:
             st.write("تحميل نموذج الكشف YOLOv5 من الملفات المحلية...")
             brain_detection_model = torch.hub.load(
-                './yolov5',  # المسار المحلي إلى مجلد yolov5
+                './yolov5-master',  # المسار المحلي إلى مجلد yolov5
                 'custom',
                 path='brain_detection_model.pt',  # ملف النموذج
                 source='local',
