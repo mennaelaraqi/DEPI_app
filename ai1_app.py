@@ -375,22 +375,32 @@ def brain_tumor_page():
     uploaded_file = st.file_uploader("Choose an MRI image...", type=["jpg", "png", "jpeg"])
 
     if uploaded_file is not None:
-        print(os.path.abspath('yolov5-master'))
-        print(os.path.abspath('brain_detection_model.pt'))
         try:
-            st.write("تحميل نموذج الكشف YOLOv5 من الملفات المحلية...")
+            st.write("تحميل نموذج الكشف YOLOv5...")
             brain_detection_model = torch.hub.load(
-                str(Path('yolov5-master')),
+                'ultralytics/yolov5',  # استخدام المستودع الرسمي
                 'custom',
-                path=str(Path('brain_detection_model.pt')),
-                source='local',
+                path='brain_detection_model.pt',
                 force_reload=True
             )
+        except Exception as e:
+            st.error(f"فشل تحميل نموذج YOLOv5: {str(e)}")
+            st.stop()
+
+        # try:
+        #     st.write("تحميل نموذج الكشف YOLOv5 من الملفات المحلية...")
+        #     brain_detection_model = torch.hub.load(
+        #         str(Path('yolov5-master')),
+        #         'custom',
+        #         path=str(Path('brain_detection_model.pt')),
+        #         source='local',
+        #         force_reload=True
+        #     )
 
             
-        except Exception as e:
-            st.error(f"فشل تحميل نموذج YOLOv5: {e}")
-            st.stop()
+        # except Exception as e:
+        #     st.error(f"فشل تحميل نموذج YOLOv5: {e}")
+        #     st.stop()
 
         image = Image.open(uploaded_file).convert('RGB')
         image_np = np.array(image)
