@@ -16,7 +16,8 @@ import tensorflow as tf
 import torch
 from transformers import pipeline
 import gdown
-from pathlib import Path
+import sys
+
 
 
 
@@ -347,6 +348,11 @@ def chest_xray_page():
 
                 
 
+# إضافة مجلد yolov5_light للمسار
+sys.path.append(os.path.abspath("yolov5_light"))
+from models.yolo import Model
+from utils.general import non_max_suppression, scale_coords
+from utils.torch_utils import select_device
 
 def brain_tumor_page():
     @st.cache_resource
@@ -355,13 +361,17 @@ def brain_tumor_page():
             # تحميل نموذج التصنيف من Google Drive
             file_id = "1nTRy7Kn5nHDlAuXoB3ffFhwiV1I3KTRg"
             output = "brain_classification_model.h5"
+
             if not os.path.exists(output):
                 gdown.download(f"https://drive.google.com/uc?id={file_id}", output, quiet=False)
+
             if not os.path.exists(output):
                 st.error("فشل تحميل نموذج التصنيف")
                 return None
+
             classification_model = tf.keras.models.load_model(output)
             return classification_model
+
         except Exception as e:
             st.error(f"حدث خطأ أثناء تحميل النموذج: {str(e)}")
             return None
@@ -374,8 +384,6 @@ def brain_tumor_page():
     if uploaded_file is not None:
         # تحميل ملف النموذج من Google Drive لو مش موجود (اختياري)
         model_path = "brain_detection_model.pt"
-        # Uncomment the following block if you want to load the model from Google Drive
-        """
         if not os.path.exists(model_path):
             st.write("تحميل ملف brain_detection_model.pt من Google Drive...")
             try:
@@ -383,23 +391,22 @@ def brain_tumor_page():
             except Exception as e:
                 st.error(f"فشل تحميل ملف النموذج: {str(e)}")
                 st.stop()
-        """
 
         # فحص المسار
         st.write(f"Model Path: {os.path.abspath(model_path)}")
         if not os.path.exists(model_path):
-            st.error(f"ملف {model_path} غير موجود! تأكد من رفعه على GitHub أو تحميله من Google Drive.")
+            st.error(f"ملف {model_path} غير موجود!")
             st.stop()
 
         try:
-            st.write("تحميل نموذج الكشف YOLOv5...")
-            brain_detection_model = torch.hub.load(
-                'ultralytics/yolov5:v7.0',  # استخدام إصدار v7.0 من YOLOv5
-                'custom',
-                path=model_path,
-                force_reload=True,
-                trust_repo=True
-            )
+            st.write("تحميل نموذج الكشف YOLOv5 يدويًا...")
+            device = select_device('')  # '' لـ CPU، '0' لـ GPU لو متاح
+            # تحميل النموذج
+            checkpoint = torch.load(model_path, map_location=device)
+            model = Model(checkpoint['model'].yaml, ch=3, nc=checkpoint['2'])  # nc هو عدد التصنيفات
+            model.load_state_dict(checkpoint['model'].state_dict())
+            model.to(device).eval()
+            img_size = 224  # نفس الحجم اللي استخدمته في التدريب
         except Exception as e:
             st.error(f"فشل تحميل نموذج YOLOv5: {str(e)}")
             st.stop()
@@ -407,9 +414,26 @@ def brain_tumor_page():
         image = Image.open(uploaded_file).convert('RGB')
         image_np = np.array(image)
 
-        # تطبيق نموذج الكشف
-        results = brain_detection_model(image_np)
-        result_img = np.squeeze(results.render())
+        # تحضير الصورة للتنبؤ
+        img = image_np.copy()
+        img = img.transpose((2, 0, 1))  # HWC to CHW
+        img = torch.from_numpy(img).to(device).float() / 255.0
+        img = img.unsqueeze(0)  # إضافة بُعد الباتش
+
+        # التنبؤ
+        with torch.no_grad():
+            pred = model(img)[0]
+            pred = non_max_suppression(pred, conf_thres=0.25, iou_thres=0.45)
+
+        # معالجة النتائج
+        result_img = image_np.copy()
+        if pred[0] is not None and len(pred[0]) > 0:
+            for det in pred[0]:
+                if len(det):
+                    box = det[:4].cpu().numpy()
+                    box = scale_coords(img.shape[2:], box, image_np.shape).round().astype(int)
+                    (x1, y1, x2, y2) = box
+                    cv2.rectangle(result_img, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
         st.image(image, caption="Uploaded MRI", use_container_width=True)
 
@@ -425,6 +449,7 @@ def brain_tumor_page():
 
                 st.markdown(f"### Diagnosis: **{brain_classes[predicted_class]}**")
                 st.image(result_img, caption="Detection Result", use_container_width=True)
+
 
 
                 
