@@ -348,6 +348,9 @@ def chest_xray_page():
                 
 def brain_tumor_page():
     @st.cache_resource
+    print(os.path.abspath('yolov5-master'))
+    print(os.path.abspath('brain_detection_model.pt'))
+    
     def load_models():
         try:
             # تحميل فقط نموذج التصنيف من Google Drive
