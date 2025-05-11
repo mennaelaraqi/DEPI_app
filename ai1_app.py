@@ -346,25 +346,22 @@ def chest_xray_page():
                 st.error(f"❌ Error analyzing image: {str(e)}")
 
                 
+
+
 def brain_tumor_page():
-    @st.cache_resource    
+    @st.cache_resource
     def load_models():
         try:
-            # تحميل فقط نموذج التصنيف من Google Drive
+            # تحميل نموذج التصنيف من Google Drive
             file_id = "1nTRy7Kn5nHDlAuXoB3ffFhwiV1I3KTRg"
             output = "brain_classification_model.h5"
-
             if not os.path.exists(output):
                 gdown.download(f"https://drive.google.com/uc?id={file_id}", output, quiet=False)
-
             if not os.path.exists(output):
                 st.error("فشل تحميل نموذج التصنيف")
                 return None
-
             classification_model = tf.keras.models.load_model(output)
-
             return classification_model
-
         except Exception as e:
             st.error(f"حدث خطأ أثناء تحميل النموذج: {str(e)}")
             return None
@@ -375,33 +372,37 @@ def brain_tumor_page():
     uploaded_file = st.file_uploader("Choose an MRI image...", type=["jpg", "png", "jpeg"])
 
     if uploaded_file is not None:
+        # تحميل ملف النموذج من Google Drive لو مش موجود (اختياري)
+        model_path = "brain_detection_model.pt"
+        # Uncomment the following block if you want to load the model from Google Drive
+        """
+        if not os.path.exists(model_path):
+            st.write("تحميل ملف brain_detection_model.pt من Google Drive...")
+            try:
+                gdown.download("https://drive.google.com/uc?id=<YOUR_FILE_ID>", model_path, quiet=False)
+            except Exception as e:
+                st.error(f"فشل تحميل ملف النموذج: {str(e)}")
+                st.stop()
+        """
+
+        # فحص المسار
+        st.write(f"Model Path: {os.path.abspath(model_path)}")
+        if not os.path.exists(model_path):
+            st.error(f"ملف {model_path} غير موجود! تأكد من رفعه على GitHub أو تحميله من Google Drive.")
+            st.stop()
+
         try:
             st.write("تحميل نموذج الكشف YOLOv5...")
             brain_detection_model = torch.hub.load(
-                'ultralytics/yolov5:v7.0',
+                'ultralytics/yolov5:v7.0',  # استخدام إصدار v7.0 من YOLOv5
                 'custom',
-                path='brain_detection_model.pt',
+                path=model_path,
                 force_reload=True,
                 trust_repo=True
             )
         except Exception as e:
             st.error(f"فشل تحميل نموذج YOLOv5: {str(e)}")
             st.stop()
-
-        # try:
-        #     st.write("تحميل نموذج الكشف YOLOv5 من الملفات المحلية...")
-        #     brain_detection_model = torch.hub.load(
-        #         str(Path('yolov5-master')),
-        #         'custom',
-        #         path=str(Path('brain_detection_model.pt')),
-        #         source='local',
-        #         force_reload=True
-        #     )
-
-            
-        # except Exception as e:
-        #     st.error(f"فشل تحميل نموذج YOLOv5: {e}")
-        #     st.stop()
 
         image = Image.open(uploaded_file).convert('RGB')
         image_np = np.array(image)
@@ -424,6 +425,7 @@ def brain_tumor_page():
 
                 st.markdown(f"### Diagnosis: **{brain_classes[predicted_class]}**")
                 st.image(result_img, caption="Detection Result", use_container_width=True)
+
 
                 
                 
