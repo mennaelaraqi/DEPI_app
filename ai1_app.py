@@ -347,10 +347,7 @@ def chest_xray_page():
 
                 
 def brain_tumor_page():
-    @st.cache_resource
-    print(os.path.abspath('yolov5-master'))
-    print(os.path.abspath('brain_detection_model.pt'))
-    
+    @st.cache_resource    
     def load_models():
         try:
             # تحميل فقط نموذج التصنيف من Google Drive
@@ -378,6 +375,8 @@ def brain_tumor_page():
     uploaded_file = st.file_uploader("Choose an MRI image...", type=["jpg", "png", "jpeg"])
 
     if uploaded_file is not None:
+        print(os.path.abspath('yolov5-master'))
+        print(os.path.abspath('brain_detection_model.pt'))
         try:
             st.write("تحميل نموذج الكشف YOLOv5 من الملفات المحلية...")
             brain_detection_model = torch.hub.load(
