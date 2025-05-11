@@ -378,10 +378,11 @@ def brain_tumor_page():
         try:
             st.write("تحميل نموذج الكشف YOLOv5...")
             brain_detection_model = torch.hub.load(
-                'ultralytics/yolov5',  # استخدام المستودع الرسمي
+                'ultralytics/yolov5:v7.0',
                 'custom',
                 path='brain_detection_model.pt',
-                force_reload=True
+                force_reload=True,
+                trust_repo=True
             )
         except Exception as e:
             st.error(f"فشل تحميل نموذج YOLOv5: {str(e)}")
