@@ -16,6 +16,7 @@ import tensorflow as tf
 import torch
 from transformers import pipeline
 import gdown
+from pathlib import Path
 
 
 
@@ -377,9 +378,9 @@ def brain_tumor_page():
         try:
             st.write("تحميل نموذج الكشف YOLOv5 من الملفات المحلية...")
             brain_detection_model = torch.hub.load(
-                'yolov5-master',  # المسار المحلي إلى مجلد yolov5
+                str(Path('yolov5-master')),
                 'custom',
-                path='brain_detection_model.pt',  # ملف النموذج
+                path=str(Path('brain_detection_model.pt')),
                 source='local',
                 force_reload=True
             )
