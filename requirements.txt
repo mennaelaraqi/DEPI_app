@@ -11,3 +11,4 @@ pytesseract
 torch
 transformers
 gdown
+tf-keras
