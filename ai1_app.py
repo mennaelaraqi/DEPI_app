@@ -384,7 +384,7 @@ def brain_tumor_page():
             st.write("تحميل ملف brain_detection_model.pt من Google Drive...")
             try:
                 # استبدلي <YOUR_FILE_ID> بمعرف الملف الفعلي على Google Drive
-                gdown.download("https://drive.google.com/uc?id=<1QcsDQBy48BYxSKKnKlBbPuIxmmYvI7ha>", model_path, quiet=False)
+                gdown.download("https://drive.google.com/uc?id=1QcsDQBy48BYxSKKnKlBbPuIxmmYvI7ha", model_path, quiet=False)
             except Exception as e:
                 st.error(f"فشل تحميل ملف نموذج YOLOv8: {str(e)}")
                 st.stop()
