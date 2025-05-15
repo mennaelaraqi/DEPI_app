@@ -435,7 +435,7 @@ def brain_tumor_page():
                     # تشغيل نموذج التصنيف
                     brain_classes = ['No_Tumor', 'Tumor']
                     prediction = classification_model.predict(img_array)
-                    predicted_class = int(prediction[0][0] > 0.5) if prediction_detected else np.argmax(prediction)
+                    predicted_class = int(prediction[0][0] > 0.5)  # تصنيف ثنائي بناءً على عتبة 0.5
 
                     # عرض النتائج
                     st.success("Analysis complete!")
@@ -452,8 +452,7 @@ def brain_tumor_page():
 
                 # حذف الصورة المؤقتة
                 if os.path.exists(temp_img_path):
-                    os.remove(temp_img_path)
-                
+                    os.remove(temp_img_path)                
 
 def liver_page():
     @st.cache_resource  # تخزين النموذج في الذاكرة للجلسات المتعددة
