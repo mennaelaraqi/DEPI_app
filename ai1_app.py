@@ -452,62 +452,119 @@ def brain_tumor_page():
 
                 # حذف الصورة المؤقتة
                 if os.path.exists(temp_img_path):
-                    os.remove(temp_img_path)                
+                    os.remove(temp_img_path) 
 
+                    
 def liver_page():
-    @st.cache_resource  # تخزين النموذج في الذاكرة للجلسات المتعددة
-    def load_models():
+    # دالة لتحميل نموذج التصنيف
+    @st.cache_resource
+    def load_classification_model():
         try:
-            # رابط Google Drive المعدل (استبدل ?usp=sharing بـ &export=download)
             file_id = "1lOBTOBoDCEtndw5RAOCoRukUtYgMc8xF"
             output = "liver_classification_model.h5"
 
-            dfile_id = '1x1FICVqQMrpBrFqAXJ4woslVrSmPHxML'
-            doutput = 'liver_detection_model.pt'
-
-            # تحميل الملف
-            gdown.download(f"https://drive.google.com/uc?id={file_id}", output, quiet=False)
-            gdown.download(f"https://drive.google.com/uc?id={dfile_id}", doutput, quiet=False)
+            if not os.path.exists(output):
+                gdown.download(f"https://drive.google.com/uc?id={file_id}", output, quiet=False)
 
             if not os.path.exists(output):
-                return None, None
+                st.error("فشل تحميل نموذج التصنيف")
+                return None
 
-            if not os.path.exists(doutput):
-                st.error("فشل تحميل نموذج الكشف YOLOv5")
-                return None, None
-
-            # تحميل النماذج
-            classification_model = tf.keras.models.load_model(output)
-
-            return classification_model, doutput
-
+            return tf.keras.models.load_model(output)
         except Exception as e:
-            st.error(f"error: {str(e)}")
-            return None, None
+            st.error(f"حدث خطأ أثناء تحميل نموذج التصنيف: {str(e)}")
+            return None
 
-    classification_model, detection_model_path = load_models()
-    st.write("### Upload liver Scan")
+    # دالة لتحميل نموذج YOLOv8
+    @st.cache_resource
+    def load_yolo_model():
+        try:
+            file_id = "1JjVXZ9Ng41oQ53poTk1j-K5rRpC2RAMr"
+            output = "liver_detection_model.pt"
+
+            if not os.path.exists(output):
+                gdown.download(f"https://drive.google.com/uc?id={file_id}", output, quiet=False)
+
+            if not os.path.exists(output):
+                st.error("فشل تحميل نموذج YOLOv8")
+                return None
+
+            return YOLO(output)
+        except Exception as e:
+            st.error(f"حدث خطأ أثناء تحميل نموذج YOLOv8: {str(e)}")
+            return None
+
+    # تحميل النماذج
+    classification_model = load_classification_model()
+    yolo_model = load_yolo_model()
+
+    # التحقق من تحميل النماذج
+    if classification_model is None or yolo_model is None:
+        st.error("تعذر تحميل أحد النماذج أو كليهما. الرجاء المحاولة لاحقًا.")
+        return
+
+    st.write("### Upload Liver Scan")
     view_mode = st.radio("Choose display type:", ["Classification Only", "Detection Only"])
     uploaded_file = st.file_uploader("Upload a radiology image", type=["jpg", "jpeg", "png"])
+
     if uploaded_file is not None:
-        liver_detection_model = torch.hub.load('ultralytics/yolov5', 'custom', path= detection_model_path, force_reload=True)
-        image = Image.open(uploaded_file).convert('RGB')
-        image_np = np.array(image)
-        results = liver_detection_model(image_np)
-        result_img = np.squeeze(results.render())
-        st.image(image, caption="Uploaded Image", use_container_width=True)
-        img = image.resize((128, 128))
-        img_array = np.expand_dims(np.array(img) / 255.0, axis=0)
+        # تحميل الصورة باستخدام PIL
+        img = Image.open(uploaded_file).convert('RGB')
+        st.image(img, caption="Uploaded Image", use_container_width=True)
+
         if st.button("Analyze Scan"):
             with st.spinner('Examining...'):
-                liver_classes = ['No_Fibrosis', 'Fibrosis']
-                if view_mode == "Classification Only":
-                    prediction = classification_model.predict(img_array)
-                    predicted_class = int(prediction[0][0] > 0.5) if prediction.shape[1] == 1 else np.argmax(prediction)
-                    st.markdown(f" Diagnosis: {liver_classes[predicted_class]}")
-                if view_mode == "Detection Only":
-                    st.image(result_img, caption="Detection Result", use_container_width=True)
+                # تحويل الصورة إلى صيغة OpenCV
+                img_array = np.array(img)
+                img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
 
+                # حفظ الصورة مؤقتًا لاستخدامها مع YOLO
+                temp_img_path = "temp_liver_image.jpg"
+                cv2.imwrite(temp_img_path, img_bgr)
+
+                try:
+                    if view_mode == "Classification Only":
+                        # تجهيز الصورة لنموذج التصنيف
+                        img_resized = img.resize((128, 128))
+                        img_array = np.expand_dims(np.array(img_resized) / 255.0, axis=0)
+
+                        # تشغيل نموذج التصنيف
+                        liver_classes = ['No_Fibrosis', 'Fibrosis']
+                        prediction = classification_model.predict(img_array)
+                        predicted_class = int(prediction[0][0] > 0.5)  # تصنيف ثنائي
+
+                        # عرض النتائج
+                        st.success("Analysis complete!")
+                        st.markdown(f"### Diagnosis: **{liver_classes[predicted_class]}**")
+
+                    elif view_mode == "Detection Only":
+                        # تشغيل نموذج YOLOv8 للكشف
+                        predictions = yolo_model.predict(source=temp_img_path, save=False, conf=0.1)
+                        fibrosis_detected = False
+                        result_img = None
+
+                        for r in predictions:
+                            if r.boxes:  # إذا تم اكتشاف أي شيء
+                                fibrosis_detected = True
+                            result_img = r.plot(labels=True, boxes=True)  # الصورة مع الإطارات
+
+                        # تحويل الصورة المعالجة إلى RGB
+                        result_img_rgb = cv2.cvtColor(result_img, cv2.COLOR_BGR2RGB)
+
+                        # عرض النتائج
+                        st.success("Analysis complete!")
+                        st.image(result_img_rgb, caption="YOLOv8 Detection Result", use_container_width=True)
+                        if fibrosis_detected:
+                            st.write("*Detection Results:* Potential fibrosis regions detected!")
+                        else:
+                            st.write("*Detection Results:* No fibrosis regions detected.")
+
+                except Exception as e:
+                    st.error(f"حدث خطأ أثناء المعالجة: {str(e)}")
+
+                # حذف الصورة المؤقتة
+                if os.path.exists(temp_img_path):
+                    os.remove(temp_img_path)
 
 def analysis_page():
     @st.cache_resource
