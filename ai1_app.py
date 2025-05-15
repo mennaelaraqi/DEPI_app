@@ -348,13 +348,11 @@ def chest_xray_page():
 
                 
 
-
-
 def brain_tumor_page():
+    # دالة لتحميل نموذج التصنيف
     @st.cache_resource
-    def load_models():
+    def load_classification_model():
         try:
-            # تحميل نموذج التصنيف من Google Drive
             file_id = "1nTRy7Kn5nHDlAuXoB3ffFhwiV1I3KTRg"
             output = "brain_classification_model.h5"
 
@@ -365,72 +363,96 @@ def brain_tumor_page():
                 st.error("فشل تحميل نموذج التصنيف")
                 return None
 
-            classification_model = tf.keras.models.load_model(output)
-            return classification_model
-
+            return tf.keras.models.load_model(output)
         except Exception as e:
-            st.error(f"حدث خطأ أثناء تحميل النموذج: {str(e)}")
+            st.error(f"حدث خطأ أثناء تحميل نموذج التصنيف: {str(e)}")
             return None
 
-    classification_model = load_models()
+    # دالة لتحميل نموذج YOLOv8
+    @st.cache_resource
+    def load_yolo_model():
+        try:
+            file_id = "1r9KPgGMVdQvzsLqAd0qxDRRwWzwEcGa4"
+            output = "brain_detection_model.pt"
+
+            if not os.path.exists(output):
+                gdown.download(f"https://drive.google.com/uc?id={file_id}", output, quiet=False)
+
+            if not os.path.exists(output):
+                st.error("فشل تحميل نموذج YOLOv8")
+                return None
+
+            return YOLO(output)
+        except Exception as e:
+            st.error(f"حدث خطأ أثناء تحميل نموذج YOLOv8: {str(e)}")
+            return None
+
+    # تحميل النماذج
+    classification_model = load_classification_model()
+    yolo_model = load_yolo_model()
+
+    # التحقق من تحميل النماذج
+    if classification_model is None or yolo_model is None:
+        st.error("تعذر تحميل أحد النماذج أو كليهما. الرجاء المحاولة لاحقًا.")
+        return
 
     st.write("### Upload Brain MRI")
     uploaded_file = st.file_uploader("Choose an MRI image...", type=["jpg", "png", "jpeg"])
 
     if uploaded_file is not None:
-        # تحميل ملف نموذج YOLOv8 من Google Drive
-        model_path = "brain_detection_model.pt"
-        if not os.path.exists(model_path):
-            st.write("تحميل ملف brain_detection_model.pt من Google Drive...")
-            try:
-                # استبدلي <YOUR_FILE_ID> بمعرف الملف الفعلي على Google Drive
-                gdown.download("https://drive.google.com/uc?id=1r9KPgGMVdQvzsLqAd0qxDRRwWzwEcGa4", model_path, quiet=False)
-            except Exception as e:
-                st.error(f"فشل تحميل ملف نموذج YOLOv8: {str(e)}")
-                st.stop()
-
-        # فحص المسار
-        st.write(f"Model Path: {os.path.abspath(model_path)}")
-        if not os.path.exists(model_path):
-            st.error(f"ملف {model_path} غير موجود!")
-            st.stop()
-
-        # تحميل نموذج YOLOv8
-        try:
-            st.write("تحميل نموذج الكشف YOLOv8...")
-            brain_detection_model = YOLO(model_path)
-        except Exception as e:
-            st.error(f"فشل تحميل نموذج YOLOv8: {str(e)}")
-            st.stop()
-
-        # فتح الصورة وتحويلها
-        image = Image.open(uploaded_file).convert('RGB')
-        image_np = np.array(image)
-
-        # تطبيق نموذج الكشف باستخدام YOLOv8
-        try:
-            results = brain_detection_model(image_np)  # التنبؤ باستخدام YOLOv8
-            result_img = np.array(results[0].plot())  # YOLOv8 بيرسم النتائج تلقائيًا
-        except Exception as e:
-            st.error(f"فشل التنبؤ باستخدام YOLOv8: {str(e)}")
-            st.stop()
-
-        # عرض الصورة الأصلية
-        st.image(image, caption="Uploaded MRI", use_container_width=True)
-
-        # تجهيز الصورة للتصنيف
-        img = image.resize((224, 224))
-        img_array = np.expand_dims(np.array(img) / 255.0, axis=0)
+        # تحميل الصورة باستخدام PIL
+        img = Image.open(uploaded_file).convert('RGB')
+        st.image(img, caption="Uploaded MRI", use_container_width=True)
 
         if st.button("Detect Tumors"):
-            with st.spinner('Processing...'):
-                brain_classes = ['No_Tumor', 'Tumor']
-                prediction = classification_model.predict(img_array)
-                predicted_class = int(prediction[0][0] > 0.5) if prediction.shape[1] == 1 else np.argmax(prediction)
+            with st.spinner('Analyzing...'):
+                # تحويل الصورة إلى صيغة OpenCV
+                img_array = np.array(img)
+                img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
 
-                st.markdown(f"### Diagnosis: **{brain_classes[predicted_class]}**")
-                st.image(result_img, caption="Detection Result", use_container_width=True)
+                # حفظ الصورة مؤقتًا لاستخدامها مع YOLO
+                temp_img_path = "temp_brain_image.jpg"
+                cv2.imwrite(temp_img_path, img_bgr)
 
+                # تشغيل نموذج YOLOv8 للكشف
+                try:
+                    predictions = yolo_model.predict(source=temp_img_path, save=False, conf=0.1)
+                    tumor_detected = False
+                    result_img = None
+
+                    for r in predictions:
+                        if r.boxes:  # إذا تم اكتشاف أي شيء
+                            tumor_detected = True
+                        result_img = r.plot(labels=True, boxes=True)  # الصورة مع الإطارات
+
+                    # تحويل الصورة المعالجة إلى RGB
+                    result_img_rgb = cv2.cvtColor(result_img, cv2.COLOR_BGR2RGB)
+
+                    # تجهيز الصورة لنموذج التصنيف
+                    img_resized = img.resize((224, 224))
+                    img_array = np.expand_dims(np.array(img_resized) / 255.0, axis=0)
+
+                    # تشغيل نموذج التصنيف
+                    brain_classes = ['No_Tumor', 'Tumor']
+                    prediction = classification_model.predict(img_array)
+                    predicted_class = int(prediction[0][0] > 0.5) if prediction_detected else np.argmax(prediction)
+
+                    # عرض النتائج
+                    st.success("Analysis complete!")
+                    st.markdown(f"### Diagnosis: **{brain_classes[predicted_class]}**")
+                    st.image(result_img_rgb, caption="YOLOv8 Detection Result", use_container_width=True)
+
+                    if tumor_detected:
+                        st.write("*Detection Results:* Potential tumor regions detected!")
+                    else:
+                        st.write("*Detection Results:* No tumor regions detected.")
+
+                except Exception as e:
+                    st.error(f"حدث خطأ أثناء المعالجة: {str(e)}")
+
+                # حذف الصورة المؤقتة
+                if os.path.exists(temp_img_path):
+                    os.remove(temp_img_path)
                 
 
 def liver_page():
